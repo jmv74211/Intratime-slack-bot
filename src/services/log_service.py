@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from flask_sslify import SSLify
 import json
 from datetime import datetime
 import sys
@@ -8,6 +9,7 @@ import settings
 import global_messages
 
 app = Flask(__name__)
+sslify = SSLify(app, permanent=True)
 
 #-------------------------------------------------------------------------------
 
@@ -52,4 +54,5 @@ def add_log():
 #------------------------------------------------------------------------------#
 
 if __name__ == '__main__':
-  app.run(host=settings.LOGGER_SERVICE_HOST, port=settings.LOGGER_SERVICE_PORT, debug=settings.DEBUG_MODE)
+  app.run(ssl_context=(settings.SERVER_CERT, settings.SERVER_KEY), host=settings.LOGGER_SERVICE_HOST,
+    port=settings.LOGGER_SERVICE_PORT, debug=settings.DEBUG_MODE)

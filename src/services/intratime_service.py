@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from flask_sslify import SSLify
 import json
 import random
 import requests
@@ -11,6 +12,7 @@ import global_messages
 import global_vars
 
 app = Flask(__name__)
+sslify = SSLify(app, permanent=True)
 
 INTRATIME_API_URL = 'http://newapi.intratime.es'
 INTRATIME_API_LOGIN_PATH =  '/api/user/login'
@@ -195,4 +197,5 @@ def register():
 #------------------------------------------------------------------------------#
 
 if __name__ == '__main__':
-  app.run(host=settings.INTRATIME_SERVICE_HOST, port=settings.INTRATIME_SERVICE_PORT, debug=settings.DEBUG_MODE)
+  app.run(ssl_context=(settings.SERVER_CERT, settings.SERVER_KEY), host=settings.INTRATIME_SERVICE_HOST,
+    port=settings.INTRATIME_SERVICE_PORT, debug=settings.DEBUG_MODE)

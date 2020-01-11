@@ -1,5 +1,6 @@
-import pymongo
 from flask import Flask, jsonify, request
+from flask_sslify import SSLify
+import pymongo
 from bson import json_util
 import json
 import sys
@@ -14,6 +15,7 @@ intratime_db = myclient['intratime_db']
 users_collection = intratime_db['users']
 
 app = Flask(__name__)
+sslify = SSLify(app)
 
 #------------------------------------------------------------------------------#
 #                             AUX FUNCTIONS                                    #
@@ -139,4 +141,5 @@ def update_user(user_id):
 #------------------------------------------------------------------------------#
 
 if __name__ == '__main__':
-  app.run(host=settings.USER_SERVICE_HOST, port=settings.USER_SERVICE_PORT, debug=settings.DEBUG_MODE)
+  app.run(ssl_context=(settings.SERVER_CERT, settings.SERVER_KEY), host=settings.USER_SERVICE_HOST,
+    port=settings.USER_SERVICE_PORT, debug=settings.DEBUG_MODE)

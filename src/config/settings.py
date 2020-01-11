@@ -11,6 +11,12 @@ ADMIN_USER = 'US6HV86ES' # He will be alerted if any service is offline
 SLACK_API_TOKEN = os.environ['SLACK_API_TOKEN']
 CIPHER_KEY = os.environ['cipher_key'] # It must be 16 || 32 characters long
 
+# Here https://kracekumar.com/post/54437887454/ssl-for-flask-local-development
+# you can find a guide about how to generate self signed certs for HTTPS
+SERVER_CERT = '../../cert/server.crt'
+SERVER_KEY = '../../cert/server.key'
+
+
 # PORTS
 DIALOG_SERVICE_PORT = '3000'
 USER_SERVICE_PORT = '3001'

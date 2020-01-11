@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, make_response
+from flask_sslify import SSLify
 import json
 import os
 import requests
@@ -14,6 +15,7 @@ import global_messages
 from functools import wraps
 
 app = Flask(__name__)
+sslify = SSLify(app, permanent=True)
 
 #------------------------------------------------------------------------------#
 #                             AUX FUNCTIONS                                    #
@@ -509,4 +511,5 @@ def delete_user_api():
 #------------------------------------------------------------------------------#
 
 if __name__ == '__main__':
-  app.run(host=settings.DIALOG_SERVICE_HOST, port=settings.DIALOG_SERVICE_PORT, debug=settings.DEBUG_MODE)
+  app.run(ssl_context=(settings.SERVER_CERT, settings.SERVER_KEY), host=settings.DIALOG_SERVICE_HOST,
+    port=settings.DIALOG_SERVICE_PORT, debug=settings.DEBUG_MODE)
