@@ -7,3 +7,6 @@ deploy/db_data/*
 !deploy/db_data/readme.md
 src/logs/*
 !src/logs/readme.md
+build
+dist
+*.egg
