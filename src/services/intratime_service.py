@@ -1,183 +1,138 @@
 from flask import Flask, jsonify, request
 import json
-import random
 import requests
-from datetime import datetime
-import sys
-sys.path.insert(0, '../config')
-sys.path.insert(0, '../lib')
-import settings
-import global_messages
-import global_vars
-import utils
+from http import HTTPStatus
+
+
+from config import settings
+from lib.global_vars import MESSAGE_FIELD
+from lib import global_messages, intratime, codes, logger
+
 
 app = Flask(__name__)
 
-INTRATIME_API_URL = 'http://newapi.intratime.es'
-INTRATIME_API_LOGIN_PATH =  '/api/user/login'
-INTRATIME_API_CLOCKING_PATH = '/api/user/clocking'
-INTRATIME_API_APPLICATION_HEADER = 'Accept: application/vnd.apiintratime.v1+json'
-INTRATIME_API_HEADER = {
-                          'Accept': 'application/vnd.apiintratime.v1+json',
-                          'Content-Type': 'application/x-www-form-urlencoded',
-                          'charset':'utf8'
-                        }
-
-#------------------------------------------------------------------------------#
-#                             AUX FUNCTIONS                                    #
-#------------------------------------------------------------------------------#
-
-def get_current_date_time():
-
-  now = datetime.now()
-  date_time = "{} {}".format(now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S"))
-
-  return date_time
-
-#-------------------------------------------------------------------------------
-
-def get_action(action):
-
-  switcher = {
-    'in': 0,
-    'out': 1,
-    'pause': 2,
-    'return': 3,
-  }
-
-  try:
-    return switcher[action]
-  except:
-    utils.log(settings.INTRATIME_SERVICE_NAME, 'get_action','ERROR' ,"Action error. Got {}".format(action))
-    return -1
-
-#-------------------------------------------------------------------------------
-
-def get_random_coordinates():
-
-  w = random.randint(1000,8324) # West of Greenwich meridian
-  n = random.randint(5184,7163)  # North of Ecuador
-
-  wazuh_location_w = float("37.147{}".format(w))
-  wazuh_location_n = float("-3.608{}".format(n))
-
-  return wazuh_location_w, wazuh_location_n
-
-#-------------------------------------------------------------------------------
-# Return codes: STRING_TOKEN: OK, -1: AUTHENTICATION_ERROR, -2: REQUEST_ERROR
-def get_login_token(email, password):
-
-  payload="user={}&pin={}".format(email, password)
-
-  try:
-    request = requests.post("{}{}".format(INTRATIME_API_URL, INTRATIME_API_LOGIN_PATH),
-      data=payload, headers=INTRATIME_API_HEADER)
-  except:
-    utils.log(settings.INTRATIME_SERVICE_NAME,'get_login_token', 'ERROR', global_messages.INTRATIME_CONNECT_ERROR_MESSAGE)
-    return -2
-
-  try:
-    token = json.loads(request.text)['USER_TOKEN']
-  except:
-    return -1
-
-  return token
-
-#-------------------------------------------------------------------------------
-
-def check_user_credentials(email, password):
-  token = get_login_token(email, password)
-  return token != -1 and token != -2
-
-#-------------------------------------------------------------------------------
-# Return codes: 0: OK, -1: REGISTRATION_FAIL, 2: REQUEST_ERROR
-def clocking(action, token):
-
-  date_time = get_current_date_time()
-
-  wazuh_location_w, wazuh_location_n = get_random_coordinates()
-
-  api_action = get_action(action) # in --> 0, out --> 1, pause --> 3, return --> 4
-  clocking_api_url = "{}{}".format(INTRATIME_API_URL, INTRATIME_API_CLOCKING_PATH)
-  INTRATIME_API_HEADER.update({ 'token': token })
-
-  payload = "user_action={}&user_use_server_time={}&user_timestamp={}&user_gps_coordinates={},{}" \
-    .format(api_action, False, date_time, wazuh_location_w, wazuh_location_n)
-  try:
-    request = requests.post(clocking_api_url, data=payload, headers=INTRATIME_API_HEADER)
-    if request.status_code == 201:
-      return 0
-    else:
-      utils.log(settings.INTRATIME_SERVICE_NAME, 'clocking', 'ERROR', "{} Status code = {}. Message = {}"
-        .format(global_messages.FAIL_INTRATIME_REGISTER_MESSAGE,request.status_code, request.text))
-      return -1
-  except:
-    utils.log(settings.INTRATIME_SERVICE_NAME, 'clocking', 'ERROR', global_messages.INTRATIME_CONNECT_ERROR_MESSAGE)
-    return -2
-
-#------------------------------------------------------------------------------#
-#                              API FUNCTIONS                                   #
-#------------------------------------------------------------------------------#
 
 @app.route('/echo', methods=['GET'])
 def echo_api():
-  return jsonify({'message': global_messages.ALIVE_MESSAGE})
+    """
+    Endpoint to reply an alive message
 
-#-------------------------------------------------------------------------------
+    Response
+    --------
+    message:  ALIVE_MESSAGE
+    status_code: 200
+    """
+    return jsonify({MESSAGE_FIELD: global_messages.ALIVE_MESSAGE}), HTTPStatus.OK
+
 
 @app.route('/check_user_credentials', methods=['GET'])
 def check_credentials():
+    """
+    Endpoint to validate user credentials
 
-  try:
+    Input data
+    ----------
+    email: str
+        User email authentication
+    passsword: str
+        User password authentication
+
+    Response
+    --------
+    - If successful authentication
+        message:  SUCCESS_MESSAGE
+        status_code: 200
+
+    - If failed authentication
+        message: BAD_AUTH_DATA
+        status_code: 401
+
+    - If bad input data
+        message: BAD_DATA_ENTERED
+        status_code: 400
+    """
     data = request.get_json()
-  except:
-    data = None
 
-  if data is None or not 'email' in data or not 'password' in data:
-    return jsonify({'message': global_messages.BAD_DATA_MESSAGE}), 400
+    if data is None or 'email' not in data or 'password' not in data:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=check_credentials.__name__,
+                   log_type=logger.ERROR, message=global_messages.BAD_DATA_ENTERED)
+        return jsonify({MESSAGE_FIELD: global_messages.BAD_DATA_MESSAGE}), HTTPStatus.BAD_REQUEST
 
-  credentials_ok = check_user_credentials(data['email'], data['password'])
+    credentials_ok = intratime.check_user_credentials(email=data['email'], password=data['password'])
 
-  if credentials_ok:
-    return jsonify({'message': global_messages.SUCCESS_MESSAGE}), 200
-  else:
-    return jsonify({'message': global_messages.WRONG_CREDENTIALS_MESSAGE}), 200
+    if not credentials_ok:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=check_credentials.__name__,
+                   log_type=logger.DEBUG, message=global_messages.BAD_AUTH_DATA)
+        return jsonify({MESSAGE_FIELD: global_messages.WRONG_CREDENTIALS_MESSAGE}), HTTPStatus.UNAUTHORIZED
 
-#-------------------------------------------------------------------------------
+    return jsonify({MESSAGE_FIELD: global_messages.SUCCESS_MESSAGE}), HTTPStatus.OK
+
 
 @app.route('/register', methods=['POST'])
 def register():
-  try:
+    """
+    Endpoint to perform an intratime API registration
+
+    Input data
+    ----------
+    email: str
+        User email authentication
+    passsword: str
+        User password authentication
+
+    Response
+    --------
+    - If successful registration
+        message:  SUCCESS_MESSAGE
+        status_code: 200
+
+    - If failed authentication
+        message: BAD_AUTH_DATA
+        status_code: 401
+
+    - If bad input data
+        message: BAD_DATA_ENTERED
+        status_code: 400
+
+    - If intratime API connection error
+        message: INTRATIME_CONNECT_ERROR_MESSAGE
+        status_code: 500
+    """
     data = request.get_json()
-  except:
-    data = None
 
-  if data is None or not 'email' in data or not 'password' in data or not 'action' in data:
-    return jsonify({'message': global_messages.BAD_DATA_MESSAGE}), 400
+    if data is None or 'email' not in data or 'password' not in data or 'action' not in data:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
+                   log_type=logger.ERROR, message=global_messages.BAD_DATA_ENTERED)
+        return jsonify({MESSAGE_FIELD: global_messages.BAD_DATA_MESSAGE}), HTTPStatus.BAD_REQUEST
 
-  token = get_login_token(data['email'], data['password'])
+    token = intratime.get_login_token(email=data['email'], password=data['password'])
 
-  if token == -1:
-    return jsonify({'message': global_messages.WRONG_CREDENTIALS_MESSAGE}), 202
-  elif token == -2:
-    utils.log(settings.INTRATIME_SERVICE_NAME, 'register', 'ERROR', "{} Status code = {}"
-      .format(global_messages.TOKEN_INTRATIME_ERROR_MESSAGE, request.status_code))
-    return jsonify({'message': global_messages.INTRATIME_CONNECT_ERROR_MESSAGE}), 500
+    if token == codes.INTRATIME_AUTH_ERROR:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
+                   log_type=logger.DEBUG, message=global_messages.BAD_AUTH_DATA)
+        return jsonify({MESSAGE_FIELD: global_messages.WRONG_CREDENTIALS_MESSAGE}), HTTPStatus.UNAUTHORIZED
 
-  register_status = clocking(data['action'], token)
+    elif token == codes.INTRATIME_API_CONNECTION_ERROR:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
+                   log_type=logger.ERROR, message=global_messages.BAD_AUTH_DATA)
+        return jsonify({MESSAGE_FIELD: global_messages.INTRATIME_CONNECT_ERROR_MESSAGE}),\
+            HTTPStatus.INTERNAL_SERVER_ERROR
 
-  if register_status == -1:
-    return jsonify({'message': global_messages.FAIL_INTRATIME_REGISTER_MESSAGE}), 500
-  elif register_status == -2:
-    utils.log(settings.INTRATIME_SERVICE_NAME, 'register', 'ERROR', "{} Status code = {}"
-      .format(global_messages.INTRATIME_CONNECT_ERROR_MESSAGE, request.status_code))
-    return jsonify({'message': global_messages.INTRATIME_CONNECT_ERROR_MESSAGE}), 500
+    register_status = intratime.clocking(action=data['action'], token=token, email=data['email'])
 
-  return jsonify({'message': global_messages.SUCCESS_MESSAGE}), 200
+    if register_status == codes.INTRATIME_AUTH_ERROR:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
+                   log_type=logger.ERROR, message=global_messages.BAD_AUTH_DATA)
+        return jsonify({MESSAGE_FIELD: global_messages.FAIL_INTRATIME_REGISTER_MESSAGE}), HTTPStatus.UNAUTHORIZED
 
-#------------------------------------------------------------------------------#
-#                                  MAIN                                        #
-#------------------------------------------------------------------------------#
+    elif register_status == codes.INTRATIME_API_CONNECTION_ERROR:
+        logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
+                   log_type=logger.ERROR, message=global_messages.BAD_AUTH_DATA)
+        return jsonify({MESSAGE_FIELD: global_messages.INTRATIME_CONNECT_ERROR_MESSAGE}),\
+            HTTPStatus.INTERNAL_SERVER_ERROR
+
+    return jsonify({MESSAGE_FIELD: global_messages.SUCCESS_MESSAGE}), HTTPStatus.OK
+
 
 if __name__ == '__main__':
-  app.run(host=settings.INTRATIME_SERVICE_HOST, port=settings.INTRATIME_SERVICE_PORT, debug=settings.DEBUG_MODE)
+    app.run(host=settings.INTRATIME_SERVICE_HOST, port=settings.INTRATIME_SERVICE_PORT, debug=settings.DEBUG_MODE)

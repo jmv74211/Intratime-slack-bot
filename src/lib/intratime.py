@@ -9,14 +9,15 @@ from lib import logger, global_messages, codes
 
 
 INTRATIME_API_URL = 'http://newapi.intratime.es'
-INTRATIME_API_LOGIN_PATH =  '/api/user/login'
+INTRATIME_API_LOGIN_PATH = '/api/user/login'
 INTRATIME_API_CLOCKING_PATH = f'{INTRATIME_API_URL}/api/user/clocking'
 INTRATIME_API_APPLICATION_HEADER = 'Accept: application/vnd.apiintratime.v1+json'
 INTRATIME_API_HEADER = {
                             'Accept': 'application/vnd.apiintratime.v1+json',
                             'Content-Type': 'application/x-www-form-urlencoded',
-                            'charset':'utf8'
+                            'charset': 'utf8'
                         }
+
 
 def get_action(action):
     """
@@ -46,24 +47,23 @@ def get_action(action):
                    message=f"Invalid '{action}' action")
 
 
-
 def get_random_coordinates():
-  """
-  Function to get a random coordinates within the Wazuh office area
+    """
+    Function to get a random coordinates within the Wazuh office area
 
-  Returns
-  -------
-  tuple:
-    West and North coordinates
+    Returns
+    -------
+    tuple:
+        West and North coordinates
 
-  """
-  w = random.randint(1000,8324) # West of Greenwich meridian
-  n = random.randint(5184,7163)  # North of Ecuador
+    """
+    w = random.randint(1000, 8324)  # West of Greenwich meridian
+    n = random.randint(5184, 7163)  # North of Ecuador
 
-  wazuh_location_w = float(f"37.147{w}")
-  wazuh_location_n = float(f"-3.608{n}")
+    wazuh_location_w = float(f"37.147{w}")
+    wazuh_location_n = float(f"-3.608{n}")
 
-  return wazuh_location_w, wazuh_location_n
+    return wazuh_location_w, wazuh_location_n
 
 
 def get_login_token(email, password):
@@ -85,7 +85,7 @@ def get_login_token(email, password):
        codes.INTRATIME_AUTH_ERROR if user authentication has failed
        codes.INTRATIME_API_CONNECTION_ERROR if there is a Intratime API connection error
     """
-    payload=f"user={email}&pin={password}"
+    payload = f"user={email}&pin={password}"
 
     try:
         request = requests.post(url=f"{INTRATIME_API_URL}{INTRATIME_API_LOGIN_PATH}", data=payload,
@@ -103,6 +103,27 @@ def get_login_token(email, password):
         return codes.INTRATIME_AUTH_ERROR
 
     return token
+
+
+def check_user_credentials(email, password):
+    """
+    Function to check if user authentication is OK
+
+    Parameters
+    ----------
+    email: str
+        User email authentication
+    password: str
+        User password authentication
+
+    Returns
+    -------
+    boolean:
+        True if successful authentication False otherwise
+    """
+    token = get_login_token(email=email, password=password)
+
+    return token != codes.INTRATIME_API_CONNECTION_ERROR and token != codes.INTRATIME_AUTH_ERROR
 
 
 def clocking(action, token, email):
@@ -132,7 +153,7 @@ def clocking(action, token, email):
     api_action = get_action(action)
 
     # Add user token to intratime header request
-    INTRATIME_API_HEADER.update({ 'token': token })
+    INTRATIME_API_HEADER.update({'token': token})
 
     payload = f"user_action={api_action}&user_use_server_time={False}&user_timestamp={date_time}&"\
               f"user_gps_coordinates={wazuh_location_w},{wazuh_location_n}"
