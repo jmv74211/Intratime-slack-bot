@@ -6,6 +6,7 @@ from http import HTTPStatus
 
 from config import settings
 from lib.global_vars import MESSAGE_FIELD
+from lib.validate import validate_request_data
 from lib import global_messages, intratime, codes, logger
 
 
@@ -52,8 +53,9 @@ def check_credentials():
         status_code: 400
     """
     data = request.get_json()
+    required_data = ['email', 'password']
 
-    if data is None or 'email' not in data or 'password' not in data:
+    if not validate_request_data(request_data=data, required_data=required_data):
         logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=check_credentials.__name__,
                    log_type=logger.ERROR, message=global_messages.BAD_DATA_ENTERED)
         return jsonify({MESSAGE_FIELD: global_messages.BAD_DATA_MESSAGE}), HTTPStatus.BAD_REQUEST
@@ -99,8 +101,9 @@ def register():
         status_code: 500
     """
     data = request.get_json()
+    required_data = ['email', 'password', 'action']
 
-    if data is None or 'email' not in data or 'password' not in data or 'action' not in data:
+    if not validate_request_data(request_data=data, required_data=required_data):
         logger.log(service_name=settings.INTRATIME_SERVICE_NAME, function=register.__name__,
                    log_type=logger.ERROR, message=global_messages.BAD_DATA_ENTERED)
         return jsonify({MESSAGE_FIELD: global_messages.BAD_DATA_MESSAGE}), HTTPStatus.BAD_REQUEST
